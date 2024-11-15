@@ -1,51 +1,79 @@
-from PIL import Image # 图片处理
-from matplotlib import pyplot as plt #绘图数据可视化
+from PIL import Image  # 图片处理
+from matplotlib import pyplot as plt  # 绘图数据可视化
 from wordcloud import WordCloud
 import numpy as np
 import sqlite3
 import jieba
 
-conn = sqlite3.connect("movie250.db")
-sql = "select introduction from movie250"
-cur = conn.cursor()
-data = cur.execute(sql)
-text = ""
-for item in data:
-    text = text + item[0]
-#print(text)
+def fetch_movie_introductions(db_path):
+    """从数据库中获取所有电影简介。"""
+    with sqlite3.connect(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT introduction FROM movie250")
+        introductions = cursor.fetchall()
+    # 将所有简介合并为一个字符串
+    return " ".join([intro[0] for intro in introductions])
 
-cur.close()
-conn.close()
+def generate_wordcloud(text, mask_image_path, font_path, output_path):
+    """生成词云并保存为图片。"""
+    # 分词
+    cut_text = " ".join(jieba.cut(text))
+    
+    # 打印分词后的字符串长度（可选）
+    print(f"分词后字符串长度: {len(cut_text)}")
+    
+    # 加载遮罩图片
+    mask_image = np.array(Image.open(mask_image_path))
+    
+    # 创建词云对象
+    wc = WordCloud(
+        background_color="white",
+        mask=mask_image,
+        font_path=font_path,
+        max_words=2000,
+        max_font_size=100,
+        random_state=42,
+        width=mask_image.shape[1],
+        height=mask_image.shape[0]
+    )
+    
+    # 生成词云
+    wc.generate(cut_text)
+    
+    # 使用matplotlib展示词云
+    plt.figure(figsize=(10, 8))
+    plt.imshow(wc, interpolation="bilinear")
+    plt.axis("off")
+    plt.tight_layout(pad=0)
+    
+    # 保存词云图片
+    plt.savefig(output_path, dpi=500, bbox_inches='tight')
+    plt.show()
 
-cut = jieba.cut(text)
-string = " ".join(cut)
-print(len(string))
+def fetch_all_movies(db_path):
+    """从数据库中获取所有电影数据。"""
+    with sqlite3.connect(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM movie250")
+        movies = cursor.fetchall()
+    return movies
 
-img = Image.open(r"/home/huishuohuademao/workspace/doubanflask/static/assets/img/tree2.jpg") #打开遮罩图片
-img_array = np.array(img)
+def main():
+    db_path = "movie250.db"
+    mask_image_path = "/home/huishuohuademao/workspace/doubanflask/static/assets/img/tree2.jpg"
+    font_path = "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"
+    output_path = "./static/assets/img/wordcloud.jpg"
+    
+    # 获取所有电影简介
+    text = fetch_movie_introductions(db_path)
+    
+    # 生成并保存词云
+    generate_wordcloud(text, mask_image_path, font_path, output_path)
+    
+    # 获取并打印所有电影数据
+    movies = fetch_all_movies(db_path)
+    for movie in movies:
+        print(movie)
 
-wc = WordCloud(
-    background_color= "white", #设置背景颜色
-    mask = img_array, #遮罩文件为数组
-    font_path= (r"/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc")
-)
-
-wc.generate_from_text(text)
-
-# 使用matplotlib展示词云
-flg = plt.figure(1) #从第一个位置开始绘图
-plt.imshow(wc, interpolation="bilinear")  # 用双线性插值显示图片
-plt.axis("off")  # 关闭坐标轴
-plt.show()
-plt.savefig(r"./static/assets/img/wordcloud.jpg", dpi = 500) #设置储存路径和分辨率为500
-
-dataList = []
-conn = sqlite3.connect("movie250.db")
-cursor = conn.cursor()
-sql = "SELECT * FROM movie250"
-data = cursor.execute(sql)
-for item in data:
-    print(item)
-    dataList.append(item)
-cursor.close()
-conn.close()
+if __name__ == "__main__":
+    main()
